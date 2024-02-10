@@ -29,6 +29,11 @@ STEP_SIZE = 1
 PREDATOR_SIZE = .40
 CHANGE_DIRECTION_INTERVAL = 60
 remaining_prey = 0
+FLEE_DISTANCE = 150
+RUN_SPEED = 2
+AVOIDANCE_ANGLE = 30
+REGULAR_SPEED = 1.0 
+CHASE_SPEED = 1.0
 
 class Prey:
     def __init__(self):
@@ -36,17 +41,28 @@ class Prey:
         self.y = random.randint(0, SCREEN_HEIGHT)
         self.direction = random.uniform(0, 2*math.pi)  # Random initial direction in radians
         self.alive = True
+        
+    def move(self, predators):
+        speed = STEP_SIZE
 
-    def move(self):
-        # Move the particle
-        self.x += STEP_SIZE * math.cos(self.direction)
-        self.y += STEP_SIZE * math.sin(self.direction)
+        # Check if prey is being chased by any predator
+        for predator in predators:
+            distance = math.sqrt((self.x - predator.x)**2 + (self.y - predator.y)**2)
+            if distance < FLEE_DISTANCE:
+                # Calculate angle away from predator
+                away_angle = math.atan2(self.y - predator.y, self.x - predator.x)
+                self.direction = away_angle + AVOIDANCE_ANGLE
+                # Increase movement speed
+                speed = RUN_SPEED
+                break
+
+        # Move the prey
+        self.x += speed * math.cos(self.direction)
+        self.y += speed * math.sin(self.direction)
         
         # Wrap around screen edges
         self.x %= SCREEN_WIDTH
         self.y %= SCREEN_HEIGHT
-
-        # prey_move_sound.play()
 
     def collide(self, other):
         # Check if this particle collides with another
@@ -88,13 +104,19 @@ class Predator:
         if closest_prey and self.detect_distance(closest_prey) < 100:
             prey_direction = math.atan2(closest_prey.y - self.y, closest_prey.x - self.x)
             self.direction = prey_direction
+            
+            # Increase speed when chasing prey
+            self.speed = CHASE_SPEED
         else:
             # Move randomly if no prey nearby
             self.direction += random.uniform(-0.1, 0.1)
+            
+            # Set regular speed when not chasing prey
+            self.speed = REGULAR_SPEED
         
-        # Update position based on direction
-        self.x += PREDATOR_SIZE * math.cos(self.direction)
-        self.y += PREDATOR_SIZE * math.sin(self.direction)
+        # Update position based on direction and speed
+        self.x += self.speed * math.cos(self.direction)
+        self.y += self.speed * math.sin(self.direction)
         
         # Wrap around screen edges
         self.x %= SCREEN_WIDTH
@@ -103,7 +125,7 @@ class Predator:
     def detect_prey(self, prey_population):
         # Find the closest prey
         closest_prey = None
-        closest_distance = float('inf')  # Initialize closest distance to infinity
+        closest_distance = float('inf') 
         for prey in prey_population:
             distance = self.detect_distance(prey)
             if distance < closest_distance:
@@ -122,24 +144,24 @@ class Predator:
     def draw(self, screen):
         # Draw predator circle
         if self.detected_prey:
-            pygame.draw.circle(screen, GREEN, (int(self.x), int(self.y)), 10)  # Change color if prey detected
-            self.detect_timer -= 1  # Decrement the detect timer
+            pygame.draw.circle(screen, GREEN, (int(self.x), int(self.y)), 10) 
+            self.detect_timer -= 1  
             if self.detect_timer <= 0:
-                self.detected_prey = None  # Reset detected prey after the timer expires
+                self.detected_prey = None 
         else:
             pygame.draw.circle(screen, RED, (int(self.x), int(self.y)), 7.5)
         
             num_lines = 8 
             angle_increment = 2 * math.pi / num_lines
             for i in range(num_lines):
-                angle = self.angle + i * angle_increment  # Use angle for rotation
+                angle = self.angle + i * angle_increment 
                 end_x = self.x + 20 * math.cos(angle)
                 end_y = self.y + 20 * math.sin(angle)
                 pygame.draw.line(screen, RED, (self.x, self.y), (end_x, end_y), 3)
 
 def run_simulation(num_prey, num_predators, predator_limit):
     global remaining_prey
-    # Initialize pygame
+    
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Predator and Prey Simulation")
@@ -151,7 +173,7 @@ def run_simulation(num_prey, num_predators, predator_limit):
     # Main loop
     clock = pygame.time.Clock()
     running = True
-    time_remaining = predator_limit * 3600  # Convert hours to seconds
+    time_remaining = predator_limit * 3600  
 
     # Create back button
     back_button = pygame.Rect(20, 20, 60, 35)
@@ -167,19 +189,19 @@ def run_simulation(num_prey, num_predators, predator_limit):
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
-                    if back_button.collidepoint(event.pos):  # Check if back button is clicked
+                    if back_button.collidepoint(event.pos): 
                         pygame.quit()
                         return get_user_input()
 
         # Move prey
         for prey in prey_population:
-            prey.move()
+            prey.move(predator_population)  
             prey.draw(screen)
             new_prey = prey.reproduce()
 
         # Move predators and handle interactions with prey
         for predator in predator_population:
-            predator.move(prey_population)  # Pass prey_population to the move method
+            predator.move(prey_population)  
             predator.draw(screen)
             prey_to_remove = None
             for prey in prey_population:
