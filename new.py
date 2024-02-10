@@ -4,6 +4,11 @@ import math
 import tkinter as tk
 from tkinter import messagebox
 
+pygame.mixer.init()
+prey_move_sound = pygame.mixer.Sound("prey.wav")
+time = pygame.mixer.Sound("time.mp3")
+kill = pygame.mixer.Sound("kill.mp3")
+
 # Set screen dimensions
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -19,7 +24,7 @@ PREY_REPRODUCTION_RATE = 0.01
 PREDATOR_REPRODUCTION_RATE = 0.01
 PREDATOR_MORTALITY_RATE = 0
 MOVEMENT_SPEED = 5
-SIGHT_RANGE = 10
+SIGHT_RANGE = 25
 STEP_SIZE = 1
 PREDATOR_SIZE = .40
 CHANGE_DIRECTION_INTERVAL = 60
@@ -41,6 +46,8 @@ class Prey:
         self.x %= SCREEN_WIDTH
         self.y %= SCREEN_HEIGHT
 
+        # prey_move_sound.play()
+
     def collide(self, other):
         # Check if this particle collides with another
         distance = math.sqrt((self.x - other.x)**2 + (self.y - other.y)**2)
@@ -60,6 +67,7 @@ class Prey:
 
     def draw(self, screen):
         pygame.draw.circle(screen, GREEN, (int(self.x), int(self.y)), 5)
+        # pygame.draw.polygon(screen, GREEN, [(self.x, self.y - 10), (self.x + 5, self.y + 5), (self.x - 5, self.y + 5)])
 
 class Predator:
     def __init__(self):
@@ -69,40 +77,43 @@ class Predator:
         self.direction = random.uniform(0, 2*math.pi)  # Random initial direction in radians
         self.change_direction_counter = 0
         self.detected_prey = None  # Keep track of detected prey
-
-    def move_towards_prey(self, prey_population):
-        for prey in prey_population:
-            dx = prey.x - self.x
-            dy = prey.y - self.y
-            dist = (dx**2 + dy**2)**0.5
-            if dist <= SIGHT_RANGE:
-                self.detected_prey = prey  # Update detected prey
-                self.x += MOVEMENT_SPEED * dx / dist
-                self.y += MOVEMENT_SPEED * dy / dist
-                self.x = max(0, min(SCREEN_WIDTH, self.x))
-                self.y = max(0, min(SCREEN_HEIGHT, self.y))
-                return prey
-        self.detected_prey = None  # Reset detected prey if none is found
-        return None
-
-    def move(self):
-        # Move the predator in a random direction
-        new_x = self.x + PREDATOR_SIZE * math.cos(self.direction)
-        new_y = self.y + PREDATOR_SIZE * math.sin(self.direction)
+        self.angle = 0  # Initial angle for rotation
         
-        # Check if the new position is outside the screen boundaries
-        if new_x < 0 or new_x > SCREEN_WIDTH:
-            self.direction = math.pi - self.direction  # Reflect direction horizontally
-        if new_y < 0 or new_y > SCREEN_HEIGHT:
-            self.direction = -self.direction  # Reflect direction vertically
+    def move(self, prey_population):
+        # Rotate the predator
+        self.angle += 0.05  # Increment angle for rotation
         
-        # Update position after potential reflection
+        # Move towards prey if detected
+        closest_prey = self.detect_prey(prey_population)
+        if closest_prey and self.detect_distance(closest_prey) < 100:
+            prey_direction = math.atan2(closest_prey.y - self.y, closest_prey.x - self.x)
+            self.direction = prey_direction
+        else:
+            # Move randomly if no prey nearby
+            self.direction += random.uniform(-0.1, 0.1)
+        
+        # Update position based on direction
         self.x += PREDATOR_SIZE * math.cos(self.direction)
         self.y += PREDATOR_SIZE * math.sin(self.direction)
         
         # Wrap around screen edges
         self.x %= SCREEN_WIDTH
         self.y %= SCREEN_HEIGHT
+    
+    def detect_prey(self, prey_population):
+        # Find the closest prey
+        closest_prey = None
+        closest_distance = float('inf')  # Initialize closest distance to infinity
+        for prey in prey_population:
+            distance = self.detect_distance(prey)
+            if distance < closest_distance:
+                closest_distance = distance
+                closest_prey = prey
+        return closest_prey
+    
+    def detect_distance(self, prey):
+        # Calculate distance to a prey
+        return math.sqrt((self.x - prey.x)**2 + (self.y - prey.y)**2)
 
     def die(self):
         if random.random() < PREDATOR_MORTALITY_RATE:
@@ -111,13 +122,20 @@ class Predator:
     def draw(self, screen):
         # Draw predator circle
         if self.detected_prey:
-            print("test")
             pygame.draw.circle(screen, GREEN, (int(self.x), int(self.y)), 10)  # Change color if prey detected
             self.detect_timer -= 1  # Decrement the detect timer
             if self.detect_timer <= 0:
                 self.detected_prey = None  # Reset detected prey after the timer expires
         else:
-            pygame.draw.circle(screen, RED, (int(self.x), int(self.y)), 10)
+            pygame.draw.circle(screen, RED, (int(self.x), int(self.y)), 7.5)
+        
+            num_lines = 8 
+            angle_increment = 2 * math.pi / num_lines
+            for i in range(num_lines):
+                angle = self.angle + i * angle_increment  # Use angle for rotation
+                end_x = self.x + 20 * math.cos(angle)
+                end_y = self.y + 20 * math.sin(angle)
+                pygame.draw.line(screen, RED, (self.x, self.y), (end_x, end_y), 3)
 
 def run_simulation(num_prey, num_predators, predator_limit):
     global remaining_prey
@@ -161,17 +179,19 @@ def run_simulation(num_prey, num_predators, predator_limit):
 
         # Move predators and handle interactions with prey
         for predator in predator_population:
-            predator.move()  # Move the predator randomly
+            predator.move(prey_population)  # Pass prey_population to the move method
             predator.draw(screen)
             prey_to_remove = None
             for prey in prey_population:
                 # Check for collision between predator and prey
                 distance = math.sqrt((predator.x - prey.x)**2 + (predator.y - prey.y)**2)
-                if distance < 10:  # Radius of predator and prey assumed to be 10
+                if distance < SIGHT_RANGE:  # Radius of predator and prey assumed to be 10
                     prey_to_remove = prey
                     predator.die()
                     remaining_prey += 1
-                    break  # Exit the loop since a collision occurred
+                    # prey_move_sound.stop()
+                    kill.play()
+                    break 
             if prey_to_remove:
                 prey_population.remove(prey_to_remove)
 
@@ -179,7 +199,6 @@ def run_simulation(num_prey, num_predators, predator_limit):
         predator_population = [predator for predator in predator_population if predator.alive]
 
         # Display remaining prey count and time at the bottom
-
         remaining_prey_count = len(prey_population)
         prey_text_surface = font.render(f"Prey Remaining: {remaining_prey_count}", True, WHITE)
         prey_text_rect = prey_text_surface.get_rect(midbottom=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 20))
@@ -189,9 +208,6 @@ def run_simulation(num_prey, num_predators, predator_limit):
         time_text_surface = font.render(remaining_time_text, True, WHITE)
         time_text_rect = time_text_surface.get_rect(midbottom=(SCREEN_WIDTH // 2, SCREEN_HEIGHT))
         screen.blit(time_text_surface, time_text_rect)
-
-        font = pygame.font.Font(None, 20)
-
 
         # Draw back button
         pygame.draw.rect(screen, GREEN, back_button)
@@ -206,6 +222,8 @@ def run_simulation(num_prey, num_predators, predator_limit):
     pygame.quit()
     if time_remaining == 0:
         results()
+        time.play()
+
 
 def results():
     global remaining_prey
