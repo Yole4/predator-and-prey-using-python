@@ -7,8 +7,8 @@ import time
 
 pygame.mixer.init()
 prey_move_sound = pygame.mixer.Sound("prey.wav")
-audio_time = pygame.mixer.Sound("time.mp3")
 kill = pygame.mixer.Sound("kill.mp3")
+time_up = pygame.mixer.SoundType("time.mp3")
 
 # Set screen dimensions
 SCREEN_WIDTH = 800
@@ -40,7 +40,7 @@ class Prey:
     def __init__(self):
         self.x = random.randint(0, SCREEN_WIDTH)
         self.y = random.randint(0, SCREEN_HEIGHT)
-        self.direction = random.uniform(0, 2*math.pi)  # Random initial direction in radians
+        self.direction = random.uniform(0, 2*math.pi) 
         self.alive = True
         
     def move(self, predators):
@@ -91,14 +91,14 @@ class Predator:
         self.x = random.randint(0, SCREEN_WIDTH)
         self.y = random.randint(0, SCREEN_HEIGHT)
         self.alive = True
-        self.direction = random.uniform(0, 2*math.pi)  # Random initial direction in radians
+        self.direction = random.uniform(0, 2*math.pi) 
         self.change_direction_counter = 0
-        self.detected_prey = None  # Keep track of detected prey
-        self.angle = 0  # Initial angle for rotation
+        self.detected_prey = None  
+        self.angle = 0 
         
     def move(self, prey_population):
         # Rotate the predator
-        self.angle += 0.05  # Increment angle for rotation
+        self.angle += 0.05 
         
         # Move towards prey if detected
         closest_prey = self.detect_prey(prey_population)
@@ -187,8 +187,6 @@ def run_simulation(num_prey, num_predators):
     while running:
         screen.fill(BLACK)
 
-        start = time.time()
-
         # Event handling
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -203,7 +201,6 @@ def run_simulation(num_prey, num_predators):
         for prey in prey_population:
             prey.move(predator_population)  
             prey.draw(screen)
-            new_prey = prey.reproduce()
 
         # Move predators and handle interactions with prey
         for predator in predator_population:
@@ -247,6 +244,7 @@ def run_simulation(num_prey, num_predators):
         screen.blit(stopwatch_surface, stopwatch_rect)
 
         if remaining_prey_count == 0:
+            time_up.play()
             pygame.quit()
             results(stopwatch_text)
 
@@ -273,8 +271,8 @@ def results(stopwatch_text):
     okay_button = tk.Button(input_window, text="Play Again", command=lambda: [input_window.destroy(), get_user_input()])
     okay_button.pack()
 
-    window_width = 300  # Adjust as needed
-    window_height = 100  # Adjust as needed
+    window_width = 300 
+    window_height = 100
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     x = (screen_width - window_width) // 2
@@ -321,8 +319,8 @@ def get_user_input():
     button_submit.pack()
 
     # Center the input window on the screen
-    window_width = 350  # Adjust as needed
-    window_height = 150  # Adjust as needed
+    window_width = 350  
+    window_height = 150 
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     x = (screen_width - window_width) // 2
