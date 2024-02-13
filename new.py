@@ -3,10 +3,11 @@ import random
 import math
 import tkinter as tk
 from tkinter import messagebox
+import time
 
 pygame.mixer.init()
 prey_move_sound = pygame.mixer.Sound("prey.wav")
-time = pygame.mixer.Sound("time.mp3")
+audio_time = pygame.mixer.Sound("time.mp3")
 kill = pygame.mixer.Sound("kill.mp3")
 
 # Set screen dimensions
@@ -159,7 +160,7 @@ class Predator:
                 end_y = self.y + 20 * math.sin(angle)
                 pygame.draw.line(screen, RED, (self.x, self.y), (end_x, end_y), 3)
 
-def run_simulation(num_prey, num_predators, predator_limit):
+def run_simulation(num_prey, num_predators):
     global remaining_prey
     
     pygame.init()
@@ -173,16 +174,21 @@ def run_simulation(num_prey, num_predators, predator_limit):
     # Main loop
     clock = pygame.time.Clock()
     running = True
-    time_remaining = predator_limit * 3600  
+
+    # Stopwatch variables
+    start_time = time.time()
+    stopwatch_font = pygame.font.Font(None, 25)
 
     # Create back button
     back_button = pygame.Rect(20, 20, 60, 35)
     font = pygame.font.Font(None, 25)
     back_text = font.render("Stop", True, WHITE)
 
-    while running and time_remaining > 0:
+    while running:
         screen.fill(BLACK)
-    
+
+        start = time.time()
+
         # Event handling
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -222,12 +228,8 @@ def run_simulation(num_prey, num_predators, predator_limit):
 
         # Display remaining prey count and time at the bottom
         remaining_prey_count = len(prey_population)
-        prey_text_surface = font.render(f"Prey Remaining: {remaining_prey_count}", True, WHITE)
-        prey_text_rect = prey_text_surface.get_rect(midbottom=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 20))
-        screen.blit(prey_text_surface, prey_text_rect)
 
-        remaining_time_text = f"Time Remaining: {time_remaining // 3600} minutes, {(time_remaining % 3600) // 60} seconds"
-        time_text_surface = font.render(remaining_time_text, True, WHITE)
+        time_text_surface = font.render(f"Prey Remaining: {remaining_prey_count}", True, WHITE)
         time_text_rect = time_text_surface.get_rect(midbottom=(SCREEN_WIDTH // 2, SCREEN_HEIGHT))
         screen.blit(time_text_surface, time_text_rect)
 
@@ -235,20 +237,27 @@ def run_simulation(num_prey, num_predators, predator_limit):
         pygame.draw.rect(screen, GREEN, back_button)
         screen.blit(back_text, (back_button.x + 10, back_button.y + 10))
 
+        # Stopwatch
+        elapsed_time = time.time() - start_time
+        minutes = int(elapsed_time // 60)
+        seconds = int(elapsed_time % 60)
+        stopwatch_text = f"{minutes:02d}:{seconds:02d}"
+        stopwatch_surface = stopwatch_font.render(stopwatch_text, True, WHITE)
+        stopwatch_rect = stopwatch_surface.get_rect(topright=(SCREEN_WIDTH - 20, 20))
+        screen.blit(stopwatch_surface, stopwatch_rect)
+
+        if remaining_prey_count == 0:
+            pygame.quit()
+            results(stopwatch_text)
+
         # Update display
         pygame.display.flip()
         clock.tick(60)
-        time_remaining -= 1
 
     # Quit pygame
     pygame.quit()
-    if time_remaining == 0:
-        results()
-        time.play()
 
-
-def results():
-    global remaining_prey
+def results(stopwatch_text):
 
     root = tk.Tk()
     root.withdraw()
@@ -256,8 +265,8 @@ def results():
     input_window = tk.Toplevel(root)
     input_window.title("Results")
 
-    predator_kill = tk.Label(input_window, text="Predator Kill/s: ")
-    predator_entry = tk.Label(input_window, text=remaining_prey)
+    predator_kill = tk.Label(input_window, text="Execution Time: ")
+    predator_entry = tk.Label(input_window, text=stopwatch_text)
     predator_kill.pack()
     predator_entry.pack()
 
@@ -294,25 +303,17 @@ def get_user_input():
     entry_predators = tk.Entry(input_window)
     entry_predators.pack()
 
-    label_limit = tk.Label(input_window, text="Enter predator limit (minutes):")
-    label_limit.pack()
-    entry_limit = tk.Entry(input_window)
-    entry_limit.pack()
-
     def submit():
         try:
             num_prey = int(entry_prey.get())
             num_predators = int(entry_predators.get())
-            predator_limit = int(entry_limit.get())
             if num_prey <= 0:
                 messagebox.showerror("Prey Error", "Number of prey must have at least 1!")
             elif num_predators <= 0:
                 messagebox.showerror("Predator Error", "Number of predator must have at least 1!")
-            elif predator_limit <= 0:
-                messagebox.showerror("Limit Error", "Time limit must have at least 1 minute!")
             else:
                 input_window.destroy()
-                run_simulation(num_prey, num_predators, predator_limit)
+                run_simulation(num_prey, num_predators)
         except ValueError:
             messagebox.showerror("Error", "Please enter valid numbers.")
 
@@ -320,8 +321,8 @@ def get_user_input():
     button_submit.pack()
 
     # Center the input window on the screen
-    window_width = 400  # Adjust as needed
-    window_height = 200  # Adjust as needed
+    window_width = 350  # Adjust as needed
+    window_height = 150  # Adjust as needed
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     x = (screen_width - window_width) // 2
