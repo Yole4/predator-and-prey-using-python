@@ -112,7 +112,7 @@ class Predator:
             self.direction += random.uniform(-0.1, 0.1)
             
             # Set regular speed when not chasing prey
-            self.speed = 20
+            self.speed = REGULAR_SPEED
         
         # Update position based on direction and speed
         self.x += self.speed * math.cos(self.direction)
