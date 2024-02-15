@@ -4,6 +4,8 @@ import math
 import tkinter as tk
 from tkinter import messagebox
 import time
+from tkinter import font
+from tkinter import ttk
 
 pygame.mixer.init()
 prey_move_sound = pygame.mixer.Sound("prey.wav")
@@ -26,15 +28,9 @@ PREDATOR_REPRODUCTION_RATE = 0.01
 PREDATOR_MORTALITY_RATE = 0
 MOVEMENT_SPEED = 5
 SIGHT_RANGE = 25
-STEP_SIZE = 1
 PREDATOR_SIZE = .40
 CHANGE_DIRECTION_INTERVAL = 60
 remaining_prey = 0
-FLEE_DISTANCE = 150
-RUN_SPEED = 2
-AVOIDANCE_ANGLE = 30
-REGULAR_SPEED = 1.0 
-CHASE_SPEED = 1.0
 
 class Prey:
     def __init__(self):
@@ -84,7 +80,10 @@ class Prey:
 
     def draw(self, screen):
         pygame.draw.circle(screen, GREEN, (int(self.x), int(self.y)), 5)
-        # pygame.draw.polygon(screen, GREEN, [(self.x, self.y - 10), (self.x + 5, self.y + 5), (self.x - 5, self.y + 5)])
+        # Draw arrow indicating direction
+        end_x = self.x + 10 * math.cos(self.direction)
+        end_y = self.y + 10 * math.sin(self.direction)
+        pygame.draw.line(screen, WHITE, (self.x, self.y), (end_x, end_y))
 
 class Predator:
     def __init__(self):
@@ -100,9 +99,9 @@ class Predator:
         # Rotate the predator
         self.angle += 0.05 
         
-        # Move towards prey if detected
-        closest_prey = self.detect_prey(prey_population)
-        if closest_prey and self.detect_distance(closest_prey) < 100:
+        # Move towards lone prey if detected
+        closest_prey = self.detect_lone_prey(prey_population)
+        if closest_prey:
             prey_direction = math.atan2(closest_prey.y - self.y, closest_prey.x - self.x)
             self.direction = prey_direction
             
@@ -113,7 +112,7 @@ class Predator:
             self.direction += random.uniform(-0.1, 0.1)
             
             # Set regular speed when not chasing prey
-            self.speed = REGULAR_SPEED
+            self.speed = 20
         
         # Update position based on direction and speed
         self.x += self.speed * math.cos(self.direction)
@@ -123,17 +122,22 @@ class Predator:
         self.x %= SCREEN_WIDTH
         self.y %= SCREEN_HEIGHT
     
-    def detect_prey(self, prey_population):
-        # Find the closest prey
+    # Helper method to detect lone prey
+    def detect_lone_prey(self, prey_population):
         closest_prey = None
         closest_distance = float('inf') 
         for prey in prey_population:
             distance = self.detect_distance(prey)
-            if distance < closest_distance:
+            if distance < closest_distance and self.is_lone_prey(prey, prey_population):
                 closest_distance = distance
                 closest_prey = prey
         return closest_prey
     
+    # Helper method to check if prey is isolated (low density aggregation)
+    def is_lone_prey(self, prey, prey_population):
+        num_neighbors = sum(1 for other in prey_population if other != prey and self.detect_distance(other) < SIGHT_RANGE)
+        return num_neighbors == 0
+
     def detect_distance(self, prey):
         # Calculate distance to a prey
         return math.sqrt((self.x - prey.x)**2 + (self.y - prey.y)**2)
@@ -144,24 +148,31 @@ class Predator:
 
     def draw(self, screen):
         # Draw predator circle
-        if self.detected_prey:
-            pygame.draw.circle(screen, GREEN, (int(self.x), int(self.y)), 10) 
-            self.detect_timer -= 1  
-            if self.detect_timer <= 0:
-                self.detected_prey = None 
-        else:
-            pygame.draw.circle(screen, RED, (int(self.x), int(self.y)), 7.5)
+        pygame.draw.circle(screen, RED, (int(self.x), int(self.y)), 7.5)
         
-            num_lines = 8 
-            angle_increment = 2 * math.pi / num_lines
-            for i in range(num_lines):
-                angle = self.angle + i * angle_increment 
-                end_x = self.x + 20 * math.cos(angle)
-                end_y = self.y + 20 * math.sin(angle)
-                pygame.draw.line(screen, RED, (self.x, self.y), (end_x, end_y), 3)
+        # Draw circular border for catch radius
+        pygame.draw.circle(screen, WHITE, (int(self.x), int(self.y)), FLEE_DISTANCE, 2)
 
-def run_simulation(num_prey, num_predators):
+        # Draw arrow indicating direction
+        end_x = self.x + 10 * math.cos(self.direction)
+        end_y = self.y + 10 * math.sin(self.direction)
+        pygame.draw.line(screen, WHITE, (self.x, self.y), (end_x, end_y))
+
+def run_simulation(num_prey, prey_speed, num_predators, predator_speed, avoid_speed, avoid_angle, chase_speed, chase_radius):
     global remaining_prey
+    global STEP_SIZE
+    global REGULAR_SPEED
+    global RUN_SPEED
+    global AVOIDANCE_ANGLE
+    global CHASE_SPEED
+    global FLEE_DISTANCE
+
+    STEP_SIZE = prey_speed
+    REGULAR_SPEED = predator_speed
+    RUN_SPEED = avoid_speed
+    AVOIDANCE_ANGLE = avoid_angle
+    CHASE_SPEED = chase_speed
+    FLEE_DISTANCE = chase_radius
     
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -214,7 +225,6 @@ def run_simulation(num_prey, num_predators):
                     prey_to_remove = prey
                     predator.die()
                     remaining_prey += 1
-                    # prey_move_sound.stop()
                     kill.play()
                     break 
             if prey_to_remove:
@@ -282,45 +292,97 @@ def results(stopwatch_text):
     input_window.mainloop()
 
 def get_user_input():
+
     root = tk.Tk()
     root.withdraw()
 
     input_window = tk.Toplevel(root)
     input_window.title("Predator and Prey")
 
-    # welcome = tk.Label(input_window, text="Predator and Prey", font=("Arial", 15), padx=10, pady=5)
-    # welcome.pack()
+    separator = ttk.Separator(input_window, orient='vertical')
+    separator.grid(row=0, column=2, rowspan=5, sticky='ns', padx=20)
 
-    label_prey = tk.Label(input_window, text="Enter number of prey:")
-    label_prey.pack()
-    entry_prey = tk.Entry(input_window)
-    entry_prey.pack()
+    tk.Label(input_window, text="Prey", font=font.Font(size=18)).grid(row=0, column=0, columnspan=2, pady=10)
+    tk.Label(input_window, text="Predator", font=font.Font(size=18)).grid(row=0, column=3, columnspan=4, pady=10)
+    # tk.Label(input_window, text="").grid(row=1, column=0)
 
-    label_predators = tk.Label(input_window, text="Enter number of predators:")
-    label_predators.pack()
-    entry_predators = tk.Entry(input_window)
-    entry_predators.pack()
+    tk.Label(input_window, text="Population:", anchor="w", justify="left").grid(row=1, column=0, padx=(30,10), pady=5, sticky="w")
+    entry_prey = tk.Entry(input_window, width=10)
+    entry_prey.grid(row=1, column=1, padx=5, pady=5)
+
+    tk.Label(input_window, text="Speed:", anchor="w", justify="left").grid(row=2, column=0, padx=(30,10), pady=5, sticky="w")
+    entry_prey_speed = tk.Entry(input_window, width=10)
+    entry_prey_speed.grid(row=2, column=1, padx=5, pady=5)
+    entry_prey_speed.insert(0, "1")
+
+    tk.Label(input_window, text="Avoid Speed:", anchor="w", justify="left").grid(row=3, column=0, padx=(30,10), pady=5, sticky="w")
+    entry_prey_avoid_speed = tk.Entry(input_window, width=10)
+    entry_prey_avoid_speed.grid(row=3, column=1, padx=5, pady=5)
+    entry_prey_avoid_speed.insert(0, "2")
+
+    tk.Label(input_window, text="Avoid Angle:", anchor="w", justify="left").grid(row=4, column=0, padx=(30,10), pady=5, sticky="w")
+    avoid_angle = tk.Entry(input_window, width=10)
+    avoid_angle.grid(row=4, column=1, padx=5, pady=5)
+    avoid_angle.insert(0, "30")
+
+    tk.Label(input_window, text="Population:", anchor="w", justify="left").grid(row=1, column=3, pady=5, sticky="w")
+    entry_predators = tk.Entry(input_window, width=10)
+    entry_predators.grid(row=1, column=4, padx=5, pady=5)
+
+    tk.Label(input_window, text="Speed:", anchor="w", justify="left").grid(row=2, column=3, pady=5, sticky="w")
+    entry_predator_speed = tk.Entry(input_window, width=10)
+    entry_predator_speed.grid(row=2, column=4, padx=5, pady=5)
+    entry_predator_speed.insert(0, "1")
+
+    tk.Label(input_window, text="Chase Speed:", anchor="w", justify="left").grid(row=3, column=3, pady=5, sticky="w")
+    entry_predator_chase_speed = tk.Entry(input_window, width=10)
+    entry_predator_chase_speed.grid(row=3, column=4, padx=5, pady=5)
+    entry_predator_chase_speed.insert(0, "1.1")
+
+    tk.Label(input_window, text="Chase Radius:", anchor="w", justify="left").grid(row=4, column=3, pady=5, sticky="w")
+    chase_redius = tk.Entry(input_window, width=10)
+    chase_redius.grid(row=4, column=4, padx=5, pady=5)
+    chase_redius.insert(0, "150")
 
     def submit():
         try:
             num_prey = int(entry_prey.get())
+            prey_speed = float(entry_prey_speed.get())
             num_predators = int(entry_predators.get())
+            predator_speed = float(entry_predator_speed.get())
+            avoid_speed = float(entry_prey_avoid_speed.get())
+            avoid_angles = float(avoid_angle.get())
+            chase_speed = float(entry_predator_chase_speed.get())
+            chase_radiuss = int(chase_redius.get())
+
             if num_prey <= 0:
-                messagebox.showerror("Prey Error", "Number of prey must have at least 1!")
+                messagebox.showerror("Prey Error", "Number of prey must be at least 1!")
+            elif prey_speed < 0:
+                messagebox.showerror("Prey Speed Error", "Speed of prey must be greater than 0!")
             elif num_predators <= 0:
-                messagebox.showerror("Predator Error", "Number of predator must have at least 1!")
+                messagebox.showerror("Predator Error", "Number of predators must be at least 1!")
+            elif predator_speed < 0:
+                messagebox.showerror("Predator Speed Error", "Speed of predators must be greater than 0!")
+            elif avoid_speed < 0:
+                messagebox.showerror("Prey Avoid Speed Error", "Avoid speed must greater than 0!")
+            elif avoid_angles < 0:
+                messagebox.showerror("Prey Avoid Angle Error", "Avoid angle must greater than 0!")
+            elif chase_speed < 0:
+                messagebox.showerror("Predator Chase Speed Error", "Chase Speed must greater than 0!")
+            elif chase_radiuss < 0:
+                messagebox.showerror("Predator Chase Radius Error", "Chase Radius must greater than 0!")
             else:
                 input_window.destroy()
-                run_simulation(num_prey, num_predators)
+                run_simulation(num_prey, prey_speed, num_predators, predator_speed, avoid_speed, avoid_angles, chase_speed, chase_radiuss)
         except ValueError:
             messagebox.showerror("Error", "Please enter valid numbers.")
 
     button_submit = tk.Button(input_window, text="Submit", command=submit)
-    button_submit.pack()
+    button_submit.grid(row=5, column=0, columnspan=4, pady=20, padx=(110, 0), sticky='ew')
 
     # Center the input window on the screen
-    window_width = 350  
-    window_height = 150 
+    window_width = 420
+    window_height = 250
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     x = (screen_width - window_width) // 2
