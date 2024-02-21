@@ -17,9 +17,12 @@ prey_move_sound = pygame.mixer.Sound("prey.mp3")
 kill = pygame.mixer.Sound("kill.mp3")
 time_up = pygame.mixer.SoundType("time.mp3")
 
+pygame.init()
+display_info = pygame.display.Info()
+
 # Set screen dimensions
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+SCREEN_WIDTH = display_info.current_w
+SCREEN_HEIGHT = display_info.current_h
 
 # Define colors
 WHITE = (255, 255, 255)
@@ -323,7 +326,7 @@ def results(prey_population, predator_population, prey_sight_range, predator_sig
 
     tk.Label(input_window, text=total_catch_time, font=font.Font(size=18)).grid(row=0, column=0, columnspan=2, padx=110, pady=20)
 
-    okay_button = tk.Button(input_window, text="Play Again", font=font.Font(size=12), command=input_window.destroy)
+    okay_button = tk.Button(input_window, text="Play Again", font=font.Font(size=12), command=lambda: [input_window.destroy(), get_user_input()])
     okay_button.grid(row=1, column=1, pady=10, padx=0)
 
     window_width = 300 
